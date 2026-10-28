@@ -24,30 +24,19 @@ const MAX_SYNC_FILE_SIZE_BYTES = 200 * 1024 * 1024;
  * - Outside mainland China: https://somark.ai/api/v1
  */
 function getApiBaseUrl() {
-    const raw = (process.env.SOMARK_API_BASE_URL || '').trim();
-    // Use default if not set
-    if (!raw) {
-        return 'https://somark.cn/api/v1';
-    }
-    // Normalize: remove trailing slash
-    const normalized = raw.replace(/\/+$/, '');
-    // Validate the provided URL
+    const raw = (process.env.SOMARK_API_BASE_URL ?? 'https://somark.cn/api/v1').trim();
+    const message = 'SOMARK_API_BASE_URL must be an absolute HTTP(S) API base URL without credentials, query parameters, or a fragment.';
+    let url;
     try {
-        const url = new URL(normalized);
-        if (!['http:', 'https:'].includes(url.protocol)) {
-            throw new Error(`SOMARK_API_BASE_URL must use http or https protocol, got: ${url.protocol}`);
-        }
-        if (!url.hostname) {
-            throw new Error(`SOMARK_API_BASE_URL has no valid hostname: ${normalized}`);
-        }
+        url = new URL(raw);
     }
-    catch (e) {
-        if (e instanceof TypeError) {
-            throw new Error(`Invalid SOMARK_API_BASE_URL: "${raw}". Must be a valid HTTP/HTTPS URL (e.g., https://somark.cn/api/v1)`);
-        }
-        throw e;
+    catch {
+        throw new Error(message);
     }
-    return normalized;
+    if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.href.includes('?') || url.href.includes('#')) {
+        throw new Error(message);
+    }
+    return url.toString().replace(/\/+$/, '');
 }
 /** Extract the domain from the API base URL (e.g., "somark.cn" from "https://somark.cn/api/v1"). */
 function getDomain() {
@@ -357,7 +346,7 @@ server.registerTool('extract_document', {
         const { code, message, data } = response;
         // Check if API returned an error
         if (code !== 0) {
-            throw new Error(`API error: ${data.error || message || 'Unknown error'}`);
+            throw new Error(`API error: ${data?.error || message || 'Unknown error'}`);
         }
         if (!data?.result) {
             throw new Error('API response is missing data.result');
@@ -421,7 +410,7 @@ server.registerTool('extract_document', {
             helpfulMessage += '\n- Firewall blocking the request';
             helpfulMessage += '\n\nPlease check:';
             helpfulMessage += '\n1. Your internet connection';
-            helpfulMessage += '\n2. API key is correctly set: echo $SOMARK_API_KEY';
+            helpfulMessage += '\n2. SOMARK_API_KEY is configured in your MCP client environment';
             helpfulMessage += '\n3. Try accessing ' + getApiBaseUrl() + ' directly';
         }
         return {
@@ -467,6 +456,7 @@ async function main() {
     const transport = new StdioServerTransport();
     await server.connect(transport);
     console.error(`SoMark MCP Server v${SERVER_VERSION} started.`);
+    console.error(`SoMark API base: ${DEFAULT_SOMARK_API_BASE_URL}`);
     console.error(`Available tools:`);
     console.error(`  - check_api_key: Check if API key is configured`);
     console.error(`  - set_api_key: Configure your SoMark API key`);

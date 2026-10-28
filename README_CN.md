@@ -48,6 +48,56 @@
 | `somark.cn`   | `https://somark.cn/api/v1`  | `https://somark.cn`       | `https://docs.somark.cn`     | [somark.cn/workbench/purchase](https://somark.cn/workbench/purchase) |
 | `somark.ai`   | `https://somark.ai/api/v1`  | `https://somark.ai`       | `https://docs.somark.ai`     | [somark.ai/studio/purchase](https://somark.ai/studio/purchase) |
 
+## 线上与私有化部署
+
+两种部署共用同一套 API 协议。为每个 MCP 进程分别配置环境变量：
+
+| 变量 | 用途 | 默认值 |
+| --- | --- | --- |
+| `SOMARK_API_BASE_URL` | API 基础地址，包含该部署的 API 前缀 | `https://somark.cn/api/v1` |
+| `SOMARK_API_KEY` | 对应部署的 API 密钥 | 解析时必需 |
+
+例如，私有化地址可以是 `https://somark.example.internal/api/v1`。
+使用该部署实际提供的前缀，不要追加 `/parse/sync`。
+末尾斜杠会自动规范化；显式配置的地址为空或不合法时启动失败，不会回退到线上服务。
+支持 HTTP 和 HTTPS，运行 MCP 的电脑必须能够访问配置的服务。
+每个进程独立使用自己的地址和密钥，不会在不同部署之间自动回退。
+
+### 在豆包工作或 WorkBuddy 中测试本地构建
+
+先运行 `pnpm build`。已发布的 npm 包不包含尚未提交的本地修改。
+将客户端配置为运行本地 `build/index.js` 的绝对路径：
+
+```json
+{
+    "mcpServers": {
+        "somark-online": {
+            "command": "/absolute/path/to/node",
+            "args": ["/absolute/path/to/somark-mcp/build/index.js"],
+            "env": {
+                "SOMARK_API_BASE_URL": "https://somark.cn/api/v1",
+                "SOMARK_API_KEY": "your-online-api-key"
+            }
+        },
+        "somark-private": {
+            "command": "/absolute/path/to/node",
+            "args": ["/absolute/path/to/somark-mcp/build/index.js"],
+            "env": {
+                "SOMARK_API_BASE_URL": "https://somark.example.internal/api/v1",
+                "SOMARK_API_KEY": "your-private-api-key"
+            }
+        }
+    }
+}
+```
+
+- **豆包工作**：添加自定义插件，选择 **STDIO**，填写上述对应条目的命令、参数和环境变量。如需同时接入两个部署，分别创建插件。
+- **WorkBuddy**：通过 MCP 配置界面添加上述条目，为每个部署使用独立服务名。
+
+真实密钥只填写在客户端本地配置中，不要放入聊天或提交到仓库的文件。
+此 STDIO 接入会读取所选本地文件，并上传到配置的 API。
+解析内容会返回 AI 客户端；仅将解析服务部署在内网，不代表整条 AI 工作流都在内网运行。
+
 ## 可用工具
 
 ### `check_api_key`
@@ -137,9 +187,13 @@ pnpm exec tsc --noEmit  # 类型检查
 ### 测试
 
 ```bash
+pnpm test:local       # 构建并运行仅访问本机的集成测试，使用合成数据
 pnpm test             # 完整 MCP 服务器测试
 pnpm test:api         # API 连接测试
 ```
+
+`test:local` 不使用真实凭据、不调用模型，并拦截所有非回环 HTTP 请求。
+其余两个命令可能向真实 API 上传文档，只能使用已授权的样本、目标地址和密钥执行。
 
 ## 常见问题
 
