@@ -10,7 +10,8 @@
   "scripts": {
     "build": "tsc && chmod 755 build/index.js",
     "test": "node test/test-mcp.js",
-    "test:api": "node test/debug-test.js"
+    "test:api": "node test/debug-test.js",
+    "test:local": "pnpm run build && node --test test/test-local.js"
   },
   "files": [
     "build",
